@@ -16,7 +16,7 @@ export CROSS_COMPILE_ARM32=${CLANG_PATH}/arm-linux-gnueabi-
 DEFCONFIG="cepheus_defconfig"
 
 # Kernel Details
-VER="R3.4-SYB"
+VER=""
 
 # Paths
 KERNEL_DIR=`pwd`
