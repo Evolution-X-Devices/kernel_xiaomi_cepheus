@@ -20,6 +20,25 @@ And public attribution of xiaomi platforms(like F1 and so and)
 	};
 };
 
+&firmware {
+	android {
+		boot_devices = "soc/1d84000.ufshc";
+	};
+};
+
+&shared_meta {
+	parts = "vbmeta,boot,system,vendor,dtbo";
+};
+
+&android_q_fstab {
+	odm {
+		status = "disabled";
+	};
+	vendor {
+		status = "disabled";
+	};
+};
+
 &pm8150b_fg {
 	qcom,battery-data = <&mtp_batterydata>;
 	qcom,rapid-soc-dec-en;
