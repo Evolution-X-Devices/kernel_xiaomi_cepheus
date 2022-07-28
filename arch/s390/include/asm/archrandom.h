@@ -25,12 +25,19 @@ static inline bool __must_check arch_get_random_long(unsigned long *v)
 	return false;
 }
 
-static inline bool __must_check arch_get_random_int(unsigned int *v)
+static inline bool arch_has_random(void)
 {
+	if (static_branch_likely(&s390_arch_random_available))
+		return true;
 	return false;
 }
 
-static inline bool __must_check arch_get_random_seed_long(unsigned long *v)
+static inline bool arch_has_random_seed(void)
+{
+	return arch_has_random();
+}
+
+static inline bool arch_get_random_long(unsigned long *v)
 {
 	if (static_branch_likely(&s390_arch_random_available)) {
 		cpacf_trng(NULL, 0, (u8 *)v, sizeof(*v));
