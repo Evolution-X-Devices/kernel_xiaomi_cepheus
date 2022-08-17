@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-2.0
 VERSION = 4
 PATCHLEVEL = 14
-SUBLEVEL = 288
+SUBLEVEL = 289
 EXTRAVERSION =
 NAME = Petit Gorille
 
@@ -763,6 +763,11 @@ endif
 
 ifdef CONFIG_MINIMAL_TRACING_FOR_IORAP
 KBUILD_CFLAGS   += -DNOTRACE
+endif
+
+ifdef CONFIG_INLINE_OPTIMIZATION
+KBUILD_CFLAGS	+= -mllvm -inline-threshold=600
+KBUILD_CFLAGS	+= -mllvm -inlinehint-threshold=750
 endif
 
 # Tell gcc to never replace conditional load with a non-conditional one
