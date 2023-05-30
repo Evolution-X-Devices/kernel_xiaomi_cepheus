@@ -267,12 +267,12 @@ And public attribution of xiaomi platforms(like F1 and so and)
 	};
 
 	gpio_keys {
-		pinctrl-0 = <&ai_key_active_default>;
-		ai_key {
-			label = "ai_key";
+		pinctrl-0 = <&assist_key_active_default>;
+		assist_key {
+			label = "assist_key";
 			gpios = <&tlmm 97 GPIO_ACTIVE_LOW>;
 			linux,input-type = <1>;
-			linux,code = <KEY_AI>;
+			linux,code = <KEY_ASSISTANT>;
 			gpio-key,wakeup;
 			debounce-interval = <39>;
 			gpio-key,level-trigger;

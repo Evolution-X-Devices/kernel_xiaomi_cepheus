@@ -166,8 +166,8 @@
 		};
 	};
 
-	ai_key_ctrl {
-		ai_key_active_default: ai_key_active {
+	assist_key_ctrl {
+		assist_key_active_default: assist_key_active {
 			mux {
 				pins = "gpio97";
 				function = "gpio";
@@ -181,7 +181,7 @@
 
 		};
 
-		ai_key_idle_default: ai_key_idle {
+		assist_key_idle_default: assist_key_idle {
 			mux {
 				pins = "gpio97";
 				function = "gpio";
