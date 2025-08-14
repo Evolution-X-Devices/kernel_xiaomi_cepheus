@@ -9,7 +9,7 @@ restore='\033[0m'
 clear
 
 # Resources
-export CLANG_PATH=~/jose/pixelos/prebuilts/clang/host/linux-x86/clang-r530567/bin
+export CLANG_PATH=~/evolution/prebuilts/clang/host/linux-x86/clang-r530567/bin
 export PATH=${CLANG_PATH}:${PATH}
 export CROSS_COMPILE=${CLANG_PATH}/aarch64-linux-gnu-
 export CROSS_COMPILE_ARM32=${CLANG_PATH}/arm-linux-gnueabi-
@@ -61,7 +61,7 @@ echo -e "${restore}"
 
 
 # Vars
-BASE_AK_VER="REVUELTO-MI9-"
+BASE_AK_VER="cepheus-"
 DATE=`date +"%Y%m%d-%H%M"`
 AK_VER="$BASE_AK_VER$VER"
 ZIP_NAME="$AK_VER"-"$DATE"
@@ -69,8 +69,8 @@ ZIP_NAME="$AK_VER"-"$DATE"
 #export LOCALVERSION=~`echo $AK_VER`
 export ARCH=arm64
 export SUBARCH=arm64
-export KBUILD_BUILD_USER=balgxmr
-export KBUILD_BUILD_HOST=balgxmr
+export KBUILD_BUILD_USER=build-user
+export KBUILD_BUILD_HOST=build-host
 
 echo
 echo Starting cleaning...
