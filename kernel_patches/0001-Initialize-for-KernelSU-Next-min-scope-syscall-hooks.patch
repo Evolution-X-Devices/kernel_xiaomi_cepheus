@@ -1,0 +1,353 @@
+From e997651990bff9c109e383055dba77acdcc4326f Mon Sep 17 00:00:00 2001
+From: nhansp <nhan.094.vn@gmail.com>
+Date: Fri, 22 Aug 2025 20:15:15 +0700
+Subject: [PATCH 1/3] Initialize for KernelSU-Next (min scope syscall hooks
+ v1.4)
+
+Original patch: https://github.com/0xSoul24/kernel_google_msm-4.14/commit/d6e838c3465950200b736bd557086f3cf3465592
+---
+ Makefile                             |  2 +-
+ arch/arm64/configs/cepheus_defconfig |  9 +++++++++
+ drivers/Kconfig                      |  2 ++
+ drivers/Makefile                     |  2 ++
+ drivers/input/input.c                | 10 ++++++++++
+ fs/devpts/inode.c                    |  6 ++++++
+ fs/exec.c                            | 22 ++++++++++++++++++++
+ fs/internal.h                        |  1 +
+ fs/namespace.c                       | 30 ++++++++++++++++++++++++++++
+ fs/open.c                            |  8 ++++++++
+ fs/read_write.c                      |  9 +++++++++
+ fs/stat.c                            | 14 +++++++++++++
+ include/linux/cred.h                 | 11 ++++++++++
+ kernel/cred.c                        |  2 +-
+ 14 files changed, 126 insertions(+), 2 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index c4f1762c0..5f13a89c9 100644
+--- a/Makefile
++++ b/Makefile
+@@ -2,7 +2,7 @@
+ VERSION = 4
+ PATCHLEVEL = 14
+ SUBLEVEL = 353
+-EXTRAVERSION = -openela
++EXTRAVERSION = -openela+ksun
+ NAME = Petit Gorille
+ 
+ # *DOCUMENTATION*
+diff --git a/arch/arm64/configs/cepheus_defconfig b/arch/arm64/configs/cepheus_defconfig
+index 7a4c95144..44b7262e4 100644
+--- a/arch/arm64/configs/cepheus_defconfig
++++ b/arch/arm64/configs/cepheus_defconfig
+@@ -780,3 +780,12 @@ CONFIG_TAS2557_CODEC=y
+ CONFIG_TAS2557_MISC=y
+ CONFIG_WCD9XXX_CODEC_CORE=y
+ CONFIG_WCD_DSP_GLINK=y
++# KernelSU-Next
++CONFIG_KPROBES=n
++CONFIG_HAVE_KPROBES=n
++CONFIG_KPROBE_EVENTS=n
++CONFIG_KSU=y
++CONFIG_KSU_KPROBES_HOOK=n
++CONFIG_KSU_DEBUG=n
++CONFIG_KSU_ALLOWLIST_WORKAROUND=n
++CONFIG_KSU_LSM_SECURITY_HOOKS=y
+diff --git a/drivers/Kconfig b/drivers/Kconfig
+index c3ccd813e..77f17c7ef 100644
+--- a/drivers/Kconfig
++++ b/drivers/Kconfig
+@@ -231,4 +231,6 @@ source "drivers/halls/Kconfig"
+ 
+ source "drivers/trusty/Kconfig"
+ 
++source "drivers/kernelsu/Kconfig"
++
+ endmenu
+diff --git a/drivers/Makefile b/drivers/Makefile
+index c579aec88..1d4310f0a 100644
+--- a/drivers/Makefile
++++ b/drivers/Makefile
+@@ -194,3 +194,5 @@ obj-$(CONFIG_TRUSTY)		+= trusty/
+ # GNSS driver
+ obj-$(CONFIG_GNSS_SIRF)		+= gnsssirf/
+ obj-$(CONFIG_GNSS)		+= gnss/
++# KernelSU
++obj-$(CONFIG_KSU) += kernelsu/
+diff --git a/drivers/input/input.c b/drivers/input/input.c
+index afd9035fb..f5547e78e 100644
+--- a/drivers/input/input.c
++++ b/drivers/input/input.c
+@@ -514,11 +514,21 @@ static void input_handle_event(struct input_dev *dev,
+  * to 'seed' initial state of a switch or initial position of absolute
+  * axis, etc.
+  */
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++extern bool ksu_input_hook __read_mostly;
++extern int ksu_handle_input_handle_event(unsigned int *type, unsigned int *code,
++					 int *value);
++#endif
+ void input_event(struct input_dev *dev,
+ 		 unsigned int type, unsigned int code, int value)
+ {
+ 	unsigned long flags;
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	if (unlikely(ksu_input_hook))
++		ksu_handle_input_handle_event(&type, &code, &value);
++#endif
++
+ 	if (is_event_supported(type, dev->evbit, EV_MAX)) {
+ 
+ 		spin_lock_irqsave(&dev->event_lock, flags);
+diff --git a/fs/devpts/inode.c b/fs/devpts/inode.c
+index 32f6f1c68..319d8d0b6 100644
+--- a/fs/devpts/inode.c
++++ b/fs/devpts/inode.c
+@@ -602,6 +602,9 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
+ 	return dentry;
+ }
+ 
++#ifdef CONFIG_KSU
++extern int ksu_handle_devpts(struct inode *);
++#endif
+ /**
+  * devpts_get_priv -- get private data for a slave
+  * @pts_inode: inode of the slave
+@@ -610,6 +613,9 @@ struct dentry *devpts_pty_new(struct pts_fs_info *fsi, int index, void *priv)
+  */
+ void *devpts_get_priv(struct dentry *dentry)
+ {
++#ifdef CONFIG_KSU
++	ksu_handle_devpts(dentry->d_inode);
++#endif
+ 	if (dentry->d_sb->s_magic != DEVPTS_SUPER_MAGIC)
+ 		return NULL;
+ 	return dentry->d_fsdata;
+diff --git a/fs/exec.c b/fs/exec.c
+index b41b27603..d00800aea 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1971,11 +1971,27 @@ void set_dumpable(struct mm_struct *mm, int value)
+ 	} while (cmpxchg(&mm->flags, old, new) != old);
+ }
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++extern bool ksu_execveat_hook __read_mostly;
++extern __attribute__((hot, always_inline)) int ksu_handle_execve_sucompat(
++	int *fd, const char __user **filename_user, void *__never_use_argv,
++	void *__never_use_envp, int *__never_use_flags);
++extern int ksu_handle_execve_ksud(const char __user *filename_user,
++				  const char __user *const __user *__argv);
++#endif
++
+ SYSCALL_DEFINE3(execve,
+ 		const char __user *, filename,
+ 		const char __user *const __user *, argv,
+ 		const char __user *const __user *, envp)
+ {
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	if (unlikely(ksu_execveat_hook))
++		ksu_handle_execve_ksud(filename, argv);
++	else
++		ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL,
++					   NULL, NULL);
++#endif
+ 	return do_execve(getname(filename), argv, envp);
+ }
+ 
+@@ -1997,6 +2013,12 @@ COMPAT_SYSCALL_DEFINE3(execve, const char __user *, filename,
+ 	const compat_uptr_t __user *, argv,
+ 	const compat_uptr_t __user *, envp)
+ {
++#if defined(CONFIG_KSU) &&                                                     \
++	!defined(CONFIG_KSU_KPROBES_HOOK) // 32-bit su and 32-on-64 support
++	if (!ksu_execveat_hook)
++		ksu_handle_execve_sucompat((int *)AT_FDCWD, &filename, NULL,
++					   NULL, NULL);
++#endif
+ 	return compat_do_execve(getname(filename), argv, envp);
+ }
+ 
+diff --git a/fs/internal.h b/fs/internal.h
+index 204e1e253..dffebf7b3 100644
+--- a/fs/internal.h
++++ b/fs/internal.h
+@@ -68,6 +68,7 @@ extern int finish_automount(struct vfsmount *, struct path *);
+ extern int sb_prepare_remount_readonly(struct super_block *);
+ 
+ extern void __init mnt_init(void);
++int path_umount(struct path *path, int flags);
+ 
+ extern int __mnt_want_write(struct vfsmount *);
+ extern int __mnt_want_write_file(struct file *);
+diff --git a/fs/namespace.c b/fs/namespace.c
+index 289db0432..af2ec7363 100644
+--- a/fs/namespace.c
++++ b/fs/namespace.c
+@@ -1825,6 +1825,36 @@ SYSCALL_DEFINE1(oldumount, char __user *, name)
+ 
+ #endif
+ 
++static int can_umount(const struct path *path, int flags)
++{
++	struct mount *mnt = real_mount(path->mnt);
++	if (flags & ~(MNT_FORCE | MNT_DETACH | MNT_EXPIRE | UMOUNT_NOFOLLOW))
++		return -EINVAL;
++	if (!may_mount())
++		return -EPERM;
++	if (path->dentry != path->mnt->mnt_root)
++		return -EINVAL;
++	if (!check_mnt(mnt))
++		return -EINVAL;
++	if (mnt->mnt.mnt_flags & MNT_LOCKED)
++		return -EINVAL;
++	if (flags & MNT_FORCE && !capable(CAP_SYS_ADMIN))
++		return -EPERM;
++	return 0;
++}
++
++int path_umount(struct path *path, int flags)
++{
++	struct mount *mnt = real_mount(path->mnt);
++	int ret;
++	ret = can_umount(path, flags);
++	if (!ret)
++		ret = do_umount(mnt, flags);
++	dput(path->dentry);
++	mntput_no_expire(mnt);
++	return ret;
++}
++
+ static bool is_mnt_ns_file(struct dentry *dentry)
+ {
+ 	/* Is this a proxy for a mount namespace? */
+diff --git a/fs/open.c b/fs/open.c
+index 548494f12..a5682b0d3 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -353,6 +353,11 @@ SYSCALL_DEFINE4(fallocate, int, fd, int, mode, loff_t, offset, loff_t, len)
+ 	}
+ 	return error;
+ }
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++extern __attribute__((hot)) int
++	ksu_handle_faccessat(int *dfd, const char __user **filename_user,
++			     int *mode, int *flags);
++#endif
+ 
+ /*
+  * access() needs to use the real uid/gid, not the effective uid/gid.
+@@ -368,6 +373,9 @@ SYSCALL_DEFINE3(faccessat, int, dfd, const char __user *, filename, int, mode)
+ 	struct vfsmount *mnt;
+ 	int res;
+ 	unsigned int lookup_flags = LOOKUP_FOLLOW;
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_faccessat(&dfd, &filename, &mode, NULL);
++#endif
+ 
+ 	if (mode & ~S_IRWXO)	/* where's F_OK, X_OK, W_OK, R_OK? */
+ 		return -EINVAL;
+diff --git a/fs/read_write.c b/fs/read_write.c
+index 635f0d7ce..b0f9c296c 100644
+--- a/fs/read_write.c
++++ b/fs/read_write.c
+@@ -567,6 +567,11 @@ static inline void file_pos_write(struct file *file, loff_t pos)
+ 	if ((file->f_mode & FMODE_STREAM) == 0)
+ 		file->f_pos = pos;
+ }
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++extern bool ksu_vfs_read_hook __read_mostly;
++extern int ksu_handle_sys_read(unsigned int fd, char __user **buf_ptr,
++			       size_t *count_ptr);
++#endif
+ 
+ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ {
+@@ -575,6 +580,10 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+ 
+ 	if (f.file) {
+ 		loff_t pos = file_pos_read(f.file);
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++		if (unlikely(ksu_vfs_read_hook))
++			ksu_handle_sys_read(fd, &buf, &count);
++#endif
+ 		ret = vfs_read(f.file, buf, count, &pos);
+ 		if (ret >= 0)
+ 			file_pos_write(f.file, pos);
+diff --git a/fs/stat.c b/fs/stat.c
+index 0fda4b6b8..664953406 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -353,6 +353,12 @@ SYSCALL_DEFINE2(newlstat, const char __user *, filename,
+ 	return cp_new_stat(&stat, statbuf);
+ }
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++extern __attribute__((hot, always_inline)) int
++	ksu_handle_stat(int *dfd, const char __user **filename_user,
++			int *flags);
++#endif
++
+ #if !defined(__ARCH_WANT_STAT64) || defined(__ARCH_WANT_SYS_NEWFSTATAT)
+ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 		struct stat __user *, statbuf, int, flag)
+@@ -360,6 +366,10 @@ SYSCALL_DEFINE4(newfstatat, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
++
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+@@ -504,6 +514,10 @@ SYSCALL_DEFINE4(fstatat64, int, dfd, const char __user *, filename,
+ 	struct kstat stat;
+ 	int error;
+ 
++#if defined(CONFIG_KSU) && !defined(CONFIG_KSU_KPROBES_HOOK)
++	ksu_handle_stat(&dfd, &filename, &flag);
++#endif
++
+ 	error = vfs_fstatat(dfd, filename, &stat, flag);
+ 	if (error)
+ 		return error;
+diff --git a/include/linux/cred.h b/include/linux/cred.h
+index e7f3f559c..5a8183624 100644
+--- a/include/linux/cred.h
++++ b/include/linux/cred.h
+@@ -264,6 +264,17 @@ static inline const struct cred *get_cred(const struct cred *cred)
+  * on task_struct are attached by const pointers to prevent accidental
+  * alteration of otherwise immutable credential sets.
+  */
++static inline const struct cred *get_cred_rcu(const struct cred *cred)
++{
++	struct cred *nonconst_cred = (struct cred *)cred;
++	if (!cred)
++		return NULL;
++	if (!atomic_long_inc_not_zero(&nonconst_cred->usage))
++		return NULL;
++	validate_creds(cred);
++	return cred;
++}
++
+ static inline void put_cred(const struct cred *_cred)
+ {
+ 	struct cred *cred = (struct cred *) _cred;
+diff --git a/kernel/cred.c b/kernel/cred.c
+index 8c58f0f63..cf72f2567 100644
+--- a/kernel/cred.c
++++ b/kernel/cred.c
+@@ -197,7 +197,7 @@ const struct cred *get_task_cred(struct task_struct *task)
+ 	do {
+ 		cred = __task_cred((task));
+ 		BUG_ON(!cred);
+-	} while (!atomic_long_inc_not_zero(&((struct cred *)cred)->usage));
++	} while (!get_cred_rcu(cred));
+ 
+ 	rcu_read_unlock();
+ 	return cred;
+-- 
+2.34.1
+
