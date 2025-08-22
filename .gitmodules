@@ -1,0 +1,8 @@
+[submodule "KernelSU-Next"]
+	path = KernelSU-Next
+	url = https://github.com/0xSoul24/KernelSU-Next
+	branch = next
+[submodule "AnyKernel"]
+	path = AnyKernel
+	url = https://github.com/raystef66/AnyKernel.git
+	branch = cepheus
