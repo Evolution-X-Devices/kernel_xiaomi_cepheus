@@ -45,10 +45,7 @@ export KBUILD_BUILD_HOST="build-host"
 # Cleanup before building
 echo -e "${green}Cleaning up before building...${restore}"
 echo
-tmp_dir=$(`mktemp -d`)
-mv .git ${tmp_dir}
-rm -rf ./* .*
-mv ${tmp_dir} .git
+rm -rf ./*
 git reset --hard origin/HEAD
 
 # Apply patches
