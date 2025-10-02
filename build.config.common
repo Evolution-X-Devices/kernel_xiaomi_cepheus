@@ -1,4 +1,4 @@
-BRANCH=android-4.14
+BRANCH=android-4.19
 
 CC=clang
 LD=ld.lld
