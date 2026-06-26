@@ -3316,7 +3316,7 @@ static void fts_enter_pointer_event_handler(struct fts_ts_info *info,
 		tag, __func__, *event, touchId, x, y, z, touchType, area_size,
 		info->fod_overlap);
 	if (event[0] == 0x13)
-		logError(1, "%s  %s :  Event 0x%02x - Press ID[%d] type = %d\n",
+		logError(0, "%s  %s :  Event 0x%02x - Press ID[%d] type = %d\n",
 			 tag, __func__, event[0], touchId, touchType);
 
 #ifndef CONFIG_FTS_FOD_AREA_REPORT
@@ -3448,11 +3448,11 @@ static void fts_leave_pointer_event_handler(struct fts_ts_info *info,
 	input_report_abs(info->input_dev, ABS_MT_TRACKING_ID, -1);
 #ifdef CONFIG_FTS_FOD_AREA_REPORT
 	if (fod_up)
-		logError(1, "%s  %s :  Event FOD - release ID[%d] type = %d\n",
+		logError(0, "%s  %s :  Event FOD - release ID[%d] type = %d\n",
 			 tag, __func__, touchId, touchType);
 	else
 #endif
-		logError(1,
+		logError(0,
 			 "%s  %s :  Event 0x%02x - release ID[%d] type = %d\n",
 			 tag, __func__, event[0], touchId, touchType);
 
